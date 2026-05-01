@@ -24,3 +24,11 @@
 - [ ] NASA true-color VIIRS basemap toggle, default ON
 - [ ] Mobile-friendly Chrome (collapsible rails, big touch targets, responsive grid)
 - [ ] Push to GitHub
+
+## Round 3 — UI overhaul + PDF + security
+- [ ] Reorganize layers into collapsible groups (BASEMAP / EARTH / WEATHER / SPACE / INTEL)
+- [ ] Cleaner pastel palette, calmer contrast, larger touch targets
+- [ ] Mobile-first: drawer rails, single-tap toggles, no overflow, sticky header
+- [ ] Verify every button (refresh, reset, fullscreen, drawers, toggles, category, range, slider, search, hotspot, feed, pins)
+- [ ] Add "GENERATE REPORT" button -> branded PDF with map snapshot + counts + filtered feed
+- [ ] Security: CSP meta, SRI on Leaflet/cluster, referrer policy, x-content-type-options

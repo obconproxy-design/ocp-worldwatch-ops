@@ -3,9 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<meta name="theme-color" content="#02050a" />
+<meta name="theme-color" content="#0b1018" />
 <title>Worldwatch OPS — Live Global Command Center</title>
-<meta name="description" content="Real-time global command center: earthquakes, wildfires, weather, lightning strikes, storms, satellites, conflict & news intelligence." />
+<meta name="description" content="Real-time global command center: earthquakes, wildfires, weather, lightning strikes, storms, satellites, and intelligence feed." />
+<meta http-equiv="X-Content-Type-Options" content="nosniff" />
+<meta name="referrer" content="strict-origin-when-cross-origin" />
+<meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=(), payment=()" />
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231a2030'/><text x='50%25' y='55%25' text-anchor='middle' fill='%23ffd9a8' font-family='monospace' font-size='18' font-weight='700'>W</text></svg>" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -16,133 +20,158 @@
 </head>
 <body>
 <header class="hdr">
-  <div class="hdr-row">
-    <button class="mobile-toggle" id="mob-left" title="Layers menu">☰ LAYERS</button>
-    <div class="brand">
-      <div class="logo">W</div>
-      <div>
-        <h1>WORLDWATCH OPS</h1>
-        <div class="sub">EARTHQUAKES · FIRES · STORMS · LIGHTNING · SATELLITES · INTEL</div>
-      </div>
+  <button class="mob-btn mob-left-btn" id="mob-left" aria-label="Open layers menu">☰</button>
+  <div class="brand">
+    <div class="logo">W</div>
+    <div class="brand-txt">
+      <h1>WORLDWATCH OPS</h1>
+      <div class="sub">GLOBAL COMMAND CENTER</div>
     </div>
-    <div class="status">
-      <div class="live"><span class="dot"></span><span>LIVE</span> <span id="clock">--:--:--</span></div>
-      <div class="date" id="date">—</div>
-    </div>
-    <button class="mobile-toggle" id="mob-right" title="Feed">FEED ☰</button>
   </div>
-  <div class="banner">// UNCLASSIFIED · OPEN-SOURCE INTELLIGENCE · <span id="hdr-date"></span> · LAYERS: <span id="layer-count">0</span> ACTIVE //</div>
+  <div class="status">
+    <div class="live"><span class="dot"></span><span id="clock">--:--:--</span></div>
+    <div class="date" id="date">—</div>
+  </div>
+  <button class="mob-btn mob-right-btn" id="mob-right" aria-label="Open feed">≡</button>
 </header>
+
+<div class="banner">
+  <span>UNCLASSIFIED · OPEN-SOURCE INTELLIGENCE</span>
+  <span class="banner-sep">·</span>
+  <span><span id="layer-count">0</span> LAYERS ACTIVE</span>
+  <span class="banner-sep">·</span>
+  <button class="btn-pdf" id="btn-pdf" title="Generate PDF report">⬇ REPORT</button>
+</div>
 
 <div class="scrim" id="scrim"></div>
 <div class="layout">
-  <!-- LEFT: layers + filters -->
+
   <aside class="left" id="left-rail">
-    <div class="panel">
-      <div class="panel-hdr">// MAP BASE</div>
-      <div class="layer-list">
-        <label class="lyr"><input type="checkbox" data-layer="nasaTrue" checked /> <span class="sw"></span><span class="nm"><span class="dot d-nasa"></span>NASA TRUE COLOR <small id="c-nasa">HD</small></span></label>
+    <div class="grp">
+      <button class="grp-hdr" data-grp="basemap"><span>BASEMAP</span><span class="caret">▾</span></button>
+      <div class="grp-body" data-body="basemap">
+        <label class="lyr"><input type="checkbox" data-layer="nasaTrue" checked /><span class="sw"></span><span class="nm"><span class="dot d-nasa"></span>NASA TRUE COLOR</span><small>HD</small></label>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-hdr">// LAYERS</div>
-      <div class="layer-list" id="layers">
-        <label class="lyr"><input type="checkbox" data-layer="quakes" checked /> <span class="sw"></span><span class="nm"><span class="dot d-quake"></span>EARTHQUAKES <small id="c-quakes">0</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="fires" checked /> <span class="sw"></span><span class="nm"><span class="dot d-fire"></span>WILDFIRES (NASA) <small id="c-fires">0</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="storms" checked /> <span class="sw"></span><span class="nm"><span class="dot d-storm"></span>TROPICAL STORMS <small id="c-storms">0</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="lightning" checked /> <span class="sw"></span><span class="nm"><span class="dot d-bolt"></span>LIGHTNING ⚡ <small id="c-bolt">0</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="news" checked /> <span class="sw"></span><span class="nm"><span class="dot d-news"></span>NEWS PINS <small id="c-news">0</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="iss" checked /> <span class="sw"></span><span class="nm"><span class="dot d-sat"></span>ISS LIVE <small id="c-iss">0</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="sats" /> <span class="sw"></span><span class="nm"><span class="dot d-sat"></span>SATELLITES <small id="c-sats">0</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="precip" checked /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · PRECIP <small>HD</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="clouds" checked /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · CLOUDS</span></label>
-        <label class="lyr"><input type="checkbox" data-layer="wind" /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · WIND</span></label>
-        <label class="lyr"><input type="checkbox" data-layer="temp" /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · TEMP</span></label>
+    <div class="grp">
+      <button class="grp-hdr" data-grp="earth"><span>EARTH</span><span class="caret">▾</span></button>
+      <div class="grp-body" data-body="earth">
+        <label class="lyr"><input type="checkbox" data-layer="quakes" checked /><span class="sw"></span><span class="nm"><span class="dot d-quake"></span>EARTHQUAKES</span><small id="c-quakes">0</small></label>
+        <label class="lyr"><input type="checkbox" data-layer="fires" checked /><span class="sw"></span><span class="nm"><span class="dot d-fire"></span>WILDFIRES</span><small id="c-fires">—</small></label>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-hdr">// CATEGORY</div>
-      <div class="cat-list" id="cats">
-        <button class="cat active" data-cat="all">ALL <small data-cnt="all">0</small></button>
-        <button class="cat" data-cat="conflict">CONFLICT <small data-cnt="conflict">0</small></button>
-        <button class="cat" data-cat="maritime">MARITIME <small data-cnt="maritime">0</small></button>
-        <button class="cat" data-cat="aviation">AVIATION <small data-cnt="aviation">0</small></button>
-        <button class="cat" data-cat="energy">ENERGY <small data-cnt="energy">0</small></button>
-        <button class="cat" data-cat="defense">DEFENSE <small data-cnt="defense">0</small></button>
-        <button class="cat" data-cat="cyber">CYBER / AI <small data-cnt="cyber">0</small></button>
-        <button class="cat" data-cat="disaster">DISASTER <small data-cnt="disaster">0</small></button>
-        <button class="cat" data-cat="diplomacy">DIPLOMACY <small data-cnt="diplomacy">0</small></button>
+    <div class="grp">
+      <button class="grp-hdr" data-grp="weather"><span>WEATHER</span><span class="caret">▾</span></button>
+      <div class="grp-body" data-body="weather">
+        <label class="lyr"><input type="checkbox" data-layer="storms" checked /><span class="sw"></span><span class="nm"><span class="dot d-storm"></span>TROPICAL STORMS</span><small id="c-storms">0</small></label>
+        <label class="lyr"><input type="checkbox" data-layer="lightning" checked /><span class="sw"></span><span class="nm"><span class="dot d-bolt"></span>LIGHTNING</span><small id="c-bolt">0</small></label>
+        <label class="lyr"><input type="checkbox" data-layer="precip" checked /><span class="sw"></span><span class="nm"><span class="dot d-w"></span>PRECIPITATION</span><small>HD</small></label>
+        <label class="lyr"><input type="checkbox" data-layer="clouds" /><span class="sw"></span><span class="nm"><span class="dot d-w"></span>CLOUDS</span><small>OWM</small></label>
+        <label class="lyr"><input type="checkbox" data-layer="wind" /><span class="sw"></span><span class="nm"><span class="dot d-w"></span>WIND</span><small>OWM</small></label>
+        <label class="lyr"><input type="checkbox" data-layer="temp" /><span class="sw"></span><span class="nm"><span class="dot d-w"></span>TEMPERATURE</span><small>OWM</small></label>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-hdr">// FILTERS</div>
-      <div class="filt">
-        <div class="row"><label>WINDOW</label>
-          <div class="time-range" id="trange">
-            <button class="tr active" data-h="24">24H</button>
-            <button class="tr" data-h="168">7D</button>
-            <button class="tr" data-h="720">30D</button>
-            <button class="tr" data-h="2160">90D</button>
-            <button class="tr" data-h="8760">1Y</button>
+    <div class="grp">
+      <button class="grp-hdr" data-grp="space"><span>SPACE</span><span class="caret">▾</span></button>
+      <div class="grp-body" data-body="space">
+        <label class="lyr"><input type="checkbox" data-layer="iss" checked /><span class="sw"></span><span class="nm"><span class="dot d-sat"></span>ISS LIVE</span><small id="c-iss">—</small></label>
+        <label class="lyr"><input type="checkbox" data-layer="sats" /><span class="sw"></span><span class="nm"><span class="dot d-sat"></span>SATELLITES</span><small id="c-sats">0</small></label>
+      </div>
+    </div>
+
+    <div class="grp">
+      <button class="grp-hdr" data-grp="intel"><span>INTEL</span><span class="caret">▾</span></button>
+      <div class="grp-body" data-body="intel">
+        <label class="lyr"><input type="checkbox" data-layer="news" checked /><span class="sw"></span><span class="nm"><span class="dot d-news"></span>NEWS PINS</span><small id="c-news">0</small></label>
+      </div>
+    </div>
+
+    <div class="grp">
+      <button class="grp-hdr" data-grp="filters"><span>FILTERS</span><span class="caret">▾</span></button>
+      <div class="grp-body" data-body="filters">
+        <div class="filt">
+          <div class="row">
+            <label>CATEGORY</label>
+            <div class="cat-list" id="cats">
+              <button class="cat active" data-cat="all">ALL <small data-cnt="all">0</small></button>
+              <button class="cat" data-cat="conflict">CONFLICT <small data-cnt="conflict">0</small></button>
+              <button class="cat" data-cat="maritime">MARITIME <small data-cnt="maritime">0</small></button>
+              <button class="cat" data-cat="aviation">AVIATION <small data-cnt="aviation">0</small></button>
+              <button class="cat" data-cat="energy">ENERGY <small data-cnt="energy">0</small></button>
+              <button class="cat" data-cat="defense">DEFENSE <small data-cnt="defense">0</small></button>
+              <button class="cat" data-cat="cyber">CYBER <small data-cnt="cyber">0</small></button>
+              <button class="cat" data-cat="disaster">DISASTER <small data-cnt="disaster">0</small></button>
+              <button class="cat" data-cat="diplomacy">DIPLOMACY <small data-cnt="diplomacy">0</small></button>
+            </div>
+          </div>
+          <div class="row">
+            <label>WINDOW</label>
+            <div class="time-range" id="trange">
+              <button class="tr active" data-h="24">24H</button>
+              <button class="tr" data-h="168">7D</button>
+              <button class="tr" data-h="720">30D</button>
+              <button class="tr" data-h="2160">90D</button>
+              <button class="tr" data-h="8760">1Y</button>
+            </div>
+          </div>
+          <div class="row"><label>MIN SEVERITY · <span id="sev-val">0</span></label>
+            <input type="range" min="0" max="5" value="0" id="sev" />
+          </div>
+          <div class="row"><label>SEARCH</label>
+            <input type="text" placeholder="keywords…" id="q" />
+          </div>
+          <div class="row btn-row">
+            <button class="btn-act" id="refresh">↻ REFRESH</button>
+            <button class="btn-act" id="reset-view">⊕ RESET</button>
           </div>
         </div>
-        <div class="row"><label>SEV ≥ <span id="sev-val">0</span></label>
-          <input type="range" min="0" max="5" value="0" id="sev" />
-        </div>
-        <div class="row"><label>SEARCH</label>
-          <input type="text" placeholder="keywords…" id="q" />
-        </div>
-        <div class="row btn-row">
-          <button class="refresh" id="refresh">↻ REFRESH</button>
-          <button class="reset" id="reset-view">⊕ RESET MAP</button>
-        </div>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-hdr">// HOTSPOTS</div>
-      <div id="hotspots" class="hotspots"></div>
+    <div class="grp">
+      <button class="grp-hdr" data-grp="hotspots"><span>HOTSPOTS</span><span class="caret">▾</span></button>
+      <div class="grp-body" data-body="hotspots">
+        <div id="hotspots" class="hotspots"></div>
+      </div>
     </div>
   </aside>
 
-  <!-- CENTER: map -->
   <section class="center">
     <div id="map"></div>
     <div class="kpis-overlay" id="kpis"></div>
     <div class="legend" id="legend">
-      <div class="lg-row"><span class="dot d-quake"></span> Earthquake (size = magnitude)</div>
-      <div class="lg-row"><span class="dot d-fire"></span> Active Fire (NASA)</div>
-      <div class="lg-row"><span class="dot d-bolt"></span> Lightning Strike (live)</div>
+      <div class="lg-row"><span class="dot d-quake"></span> Earthquake</div>
+      <div class="lg-row"><span class="dot d-fire"></span> Active Fire</div>
+      <div class="lg-row"><span class="dot d-bolt"></span> Lightning</div>
       <div class="lg-row"><span class="dot d-storm"></span> Tropical Storm</div>
       <div class="lg-row"><span class="dot d-news"></span> News Event</div>
       <div class="lg-row"><span class="dot d-sat"></span> Satellite / ISS</div>
     </div>
-    <button class="fs" id="fs" title="Fullscreen map">⛶</button>
+    <button class="map-btn fs" id="fs" title="Fullscreen">⛶</button>
+    <button class="map-btn lgd-btn" id="legend-toggle" title="Toggle legend">i</button>
     <div class="map-meta" id="map-meta">INITIALIZING…</div>
   </section>
 
-  <!-- RIGHT: feed -->
   <aside class="right" id="right-rail">
-    <div class="panel feed-panel">
-      <div class="panel-hdr">
-        <span>// SITUATIONAL FEED</span>
-        <span id="feed-meta">—</span>
-      </div>
-      <div id="feed" class="feed"></div>
+    <div class="feed-hdr">
+      <span>SITUATIONAL FEED</span>
+      <span id="feed-meta">—</span>
     </div>
+    <div id="feed" class="feed"></div>
   </aside>
 </div>
 
 <footer class="ftr">
-  <span>SOURCES: USGS · NASA GIBS · NASA WORLDVIEW · NOAA NHC · OpenWeatherMap · Blitzortung · N2YO · NewsAPI · REUTERS · BBC · AP · Al Jazeera · OilPrice · gCaptain · BleepingComputer · ReliefWeb</span>
+  <span>SOURCES: USGS · NASA GIBS · NOAA NHC · OpenWeatherMap · Blitzortung · N2YO · NewsAPI · Reuters · BBC · AP · Al Jazeera · OilPrice · gCaptain · BleepingComputer · ReliefWeb</span>
   <span>WORLDWATCH OPS · OPEN-SOURCE · NOT AN OFFICIAL INTEL PRODUCT</span>
 </footer>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="./config.js"></script>
 <script src="./app.js"></script>
 </body>

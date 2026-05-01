@@ -77,7 +77,11 @@ let boltCount = 0;
 let boltDecayTimer = null;
 
 // === Bootstrap ===
-init();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
 
 async function init() {
   startClock();
@@ -103,9 +107,9 @@ async function init() {
 function startClock() {
   const tick = () => {
     const d = new Date();
-    document.getElementById("clock").textContent = d.toLocaleTimeString("en-US", { hour12: false }) + " UTC";
-    document.getElementById("date").textContent = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "2-digit", year: "numeric" }).toUpperCase();
-    document.getElementById("hdr-date").textContent = d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }).toUpperCase();
+    const c = document.getElementById("clock"); if (c) c.textContent = d.toLocaleTimeString("en-US", { hour12: false }) + " UTC";
+    const dt = document.getElementById("date"); if (dt) dt.textContent = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "2-digit", year: "numeric" }).toUpperCase();
+    const hd = document.getElementById("hdr-date"); if (hd) hd.textContent = d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }).toUpperCase();
   };
   tick(); setInterval(tick, 1000);
 }
@@ -145,6 +149,13 @@ function initMap() {
 }
 
 function bindUI() {
+  // Accordion groups
+  document.querySelectorAll(".grp-hdr").forEach(h => {
+    h.addEventListener("click", () => {
+      const g = h.parentElement;
+      g.classList.toggle("collapsed");
+    });
+  });
   document.querySelectorAll('.lyr input').forEach(cb => {
     cb.addEventListener("change", () => {
       const name = cb.dataset.layer;
@@ -179,8 +190,17 @@ function bindUI() {
     render();
   });
   document.getElementById("q").addEventListener("input", e => { q = e.target.value.toLowerCase(); render(); });
-  document.getElementById("refresh").addEventListener("click", () => { refreshNews(); refreshQuakes(); refreshFires(); refreshStorms(); });
+  document.getElementById("refresh").addEventListener("click", () => {
+    document.getElementById("feed-meta").textContent = "REFRESHING…";
+    refreshNews(); refreshQuakes(); refreshStorms();
+  });
   document.getElementById("reset-view").addEventListener("click", () => map.setView([20, 10], 2));
+  // Legend toggle (mobile)
+  document.getElementById("legend-toggle")?.addEventListener("click", () => {
+    document.getElementById("legend").classList.toggle("open");
+  });
+  // PDF report button
+  document.getElementById("btn-pdf")?.addEventListener("click", generateReport);
   // Mobile drawer toggles
   const left = document.getElementById("left-rail");
   const right = document.getElementById("right-rail");
@@ -522,3 +542,136 @@ function relTime(ts) {
 }
 function escapeHtml(s) { return (s||"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
 function escapeAttr(s) { return escapeHtml(s).replace(/'/g, "&#39;"); }
+
+
+// === PDF Report Generation ===
+async function generateReport() {
+  const btn = document.getElementById("btn-pdf");
+  const orig = btn.textContent;
+  btn.textContent = "GENERATING…";
+  btn.disabled = true;
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "letter" });
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const M = 36;
+    const now = new Date();
+    const stamp = now.toUTCString();
+
+    // Header
+    doc.setFillColor(11, 16, 24); doc.rect(0, 0, W, 60, "F");
+    doc.setTextColor(255, 217, 168); doc.setFont("helvetica", "bold"); doc.setFontSize(16);
+    doc.text("WORLDWATCH OPS", M, 32);
+    doc.setFontSize(9); doc.setTextColor(180, 190, 210);
+    doc.text("GLOBAL COMMAND CENTER \u00b7 SITUATION REPORT", M, 48);
+    doc.setFontSize(8); doc.setTextColor(255, 217, 168);
+    doc.text(stamp, W - M, 32, { align: "right" });
+    doc.setTextColor(140, 150, 170);
+    doc.text("UNCLASSIFIED \u00b7 OPEN-SOURCE", W - M, 48, { align: "right" });
+
+    let y = 90;
+
+    // Active layers + filters summary
+    const activeLayers = Object.entries(layerActive).filter(([,v])=>v).map(([k])=>k.toUpperCase()).join(", ");
+    doc.setTextColor(40, 50, 70); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text("ACTIVE LAYERS", M, y); y += 14;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(60, 70, 90);
+    doc.text(doc.splitTextToSize(activeLayers, W - 2*M), M, y); y += 22;
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(40, 50, 70);
+    doc.text("FILTERS", M, y); y += 14;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(60, 70, 90);
+    doc.text(`Window: ${activeHours}H \u2022 Category: ${activeCat.toUpperCase()} \u2022 Min severity: S${minSev} \u2022 Search: "${q || "\u2014"}"`, M, y);
+    y += 22;
+
+    // KPIs
+    const cutoff = Date.now() - activeHours * 3600 * 1000;
+    const inTime = RAW.filter(it => it.ts >= cutoff);
+    const conflict = inTime.filter(it => it.cat === "conflict").length;
+    const sev4 = inTime.filter(it => it.sev >= 4).length;
+    const hots = bucket(inTime.filter(it=>it.region), "region");
+    const top = Object.entries(hots).sort((a,b)=>b[1]-a[1])[0];
+
+    const kpis = [
+      ["Signals", String(inTime.length)],
+      ["Conflict", String(conflict)],
+      ["Critical S4+", String(sev4)],
+      ["Top Hotspot", top ? `${top[0]} (${top[1]})` : "\u2014"],
+    ];
+    const kpiW = (W - 2*M - 18) / 4;
+    kpis.forEach(([lbl,val], i) => {
+      const x = M + i * (kpiW + 6);
+      doc.setFillColor(245, 245, 250); doc.roundedRect(x, y, kpiW, 50, 4, 4, "F");
+      doc.setFontSize(8); doc.setTextColor(120,130,150); doc.setFont("helvetica","normal");
+      doc.text(lbl.toUpperCase(), x + 8, y + 14);
+      doc.setFontSize(13); doc.setTextColor(40,50,70); doc.setFont("helvetica","bold");
+      doc.text(val, x + 8, y + 36);
+    });
+    y += 70;
+
+    // Map snapshot (canvas of leaflet using html2canvas-lite via dom-to-image is heavy; use map screenshot via leaflet's getCanvas not available without plugin)
+    // Strategy: use Leaflet's natural HTML and html-to-image fallback — but to keep static & simple, render an outline image with Stadia/OSM static map fallback.
+    // Use a lightweight static map via OSM staticmap services (none free for commercial). Skip the live snapshot; instead include hotspot/feed list.
+
+    // Hotspots table
+    doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(40,50,70);
+    doc.text("HOTSPOTS", M, y); y += 14;
+    doc.setLineWidth(0.5); doc.setDrawColor(220, 225, 235); doc.line(M, y, W-M, y); y += 4;
+    const hotEntries = Object.entries(hots).sort((a,b)=>b[1]-a[1]).slice(0, 10);
+    doc.setFont("helvetica","normal"); doc.setFontSize(10);
+    if (!hotEntries.length) { doc.setTextColor(150,160,180); doc.text("No regional hotspots in window.", M, y+12); y += 24; }
+    hotEntries.forEach(([name, n]) => {
+      y += 14;
+      doc.setTextColor(40,50,70); doc.text(name, M+4, y);
+      doc.setTextColor(180, 130, 60); doc.text(String(n) + " mentions", W - M - 4, y, { align: "right" });
+    });
+    y += 16;
+
+    // Feed (filtered to current view)
+    const visible = RAW.filter(it => {
+      if (it.ts < cutoff) return false;
+      if (activeCat !== "all" && it.cat !== activeCat) return false;
+      if (it.sev < minSev) return false;
+      if (q && !((it.title + " " + it.desc).toLowerCase().includes(q))) return false;
+      return true;
+    }).slice(0, 60);
+
+    doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(40,50,70);
+    if (y > H - 100) { doc.addPage(); y = M; }
+    doc.text(`SITUATIONAL FEED (${visible.length})`, M, y); y += 14;
+    doc.setLineWidth(0.5); doc.setDrawColor(220,225,235); doc.line(M, y, W-M, y); y += 8;
+
+    doc.setFontSize(9);
+    visible.forEach(it => {
+      const ttl = it.title;
+      const meta = `${it.cat.toUpperCase()} \u2022 S${it.sev} \u2022 ${it.src}${it.region ? " \u2022 " + it.region : ""} \u2022 ${relTime(it.ts)} ago`;
+      const ttlLines = doc.splitTextToSize(ttl, W - 2*M);
+      const blockH = 14 * ttlLines.length + 16;
+      if (y + blockH > H - M) { doc.addPage(); y = M; }
+      doc.setFont("helvetica","bold"); doc.setTextColor(40,50,70);
+      doc.text(ttlLines, M, y); y += 12 * ttlLines.length;
+      doc.setFont("helvetica","normal"); doc.setTextColor(140,150,170); doc.setFontSize(8);
+      doc.text(meta, M, y); y += 6;
+      doc.setDrawColor(235,238,243); doc.line(M, y, W-M, y); y += 10;
+      doc.setFontSize(9);
+    });
+
+    // Footer on every page
+    const pages = doc.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7); doc.setTextColor(150,160,180);
+      doc.text(`Worldwatch OPS \u2022 ${stamp} \u2022 Page ${i} of ${pages}`, W/2, H - 14, { align: "center" });
+    }
+
+    const fname = `worldwatch-ops_${now.toISOString().slice(0,16).replace(/[:T]/g,"-")}.pdf`;
+    doc.save(fname);
+  } catch (e) {
+    console.error("report", e);
+    alert("Report generation failed: " + e.message);
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
