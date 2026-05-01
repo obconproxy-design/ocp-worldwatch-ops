@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#02050a" />
 <title>Worldwatch OPS — Live Global Command Center</title>
-<meta name="description" content="Real-time global command center: earthquakes, wildfires, weather, storms, satellites, conflict & news intelligence." />
+<meta name="description" content="Real-time global command center: earthquakes, wildfires, weather, lightning strikes, storms, satellites, conflict & news intelligence." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -16,35 +17,46 @@
 <body>
 <header class="hdr">
   <div class="hdr-row">
+    <button class="mobile-toggle" id="mob-left" title="Layers menu">☰ LAYERS</button>
     <div class="brand">
       <div class="logo">W</div>
       <div>
-        <h1>WORLDWATCH OPS · GLOBAL COMMAND CENTER</h1>
-        <div class="sub">EARTHQUAKES · FIRES · STORMS · SATELLITES · CONFLICT · INTEL</div>
+        <h1>WORLDWATCH OPS</h1>
+        <div class="sub">EARTHQUAKES · FIRES · STORMS · LIGHTNING · SATELLITES · INTEL</div>
       </div>
     </div>
     <div class="status">
       <div class="live"><span class="dot"></span><span>LIVE</span> <span id="clock">--:--:--</span></div>
       <div class="date" id="date">—</div>
     </div>
+    <button class="mobile-toggle" id="mob-right" title="Feed">FEED ☰</button>
   </div>
   <div class="banner">// UNCLASSIFIED · OPEN-SOURCE INTELLIGENCE · <span id="hdr-date"></span> · LAYERS: <span id="layer-count">0</span> ACTIVE //</div>
 </header>
 
+<div class="scrim" id="scrim"></div>
 <div class="layout">
   <!-- LEFT: layers + filters -->
-  <aside class="left">
+  <aside class="left" id="left-rail">
+    <div class="panel">
+      <div class="panel-hdr">// MAP BASE</div>
+      <div class="layer-list">
+        <label class="lyr"><input type="checkbox" data-layer="nasaTrue" checked /> <span class="sw"></span><span class="nm"><span class="dot d-nasa"></span>NASA TRUE COLOR <small id="c-nasa">HD</small></span></label>
+      </div>
+    </div>
+
     <div class="panel">
       <div class="panel-hdr">// LAYERS</div>
       <div class="layer-list" id="layers">
         <label class="lyr"><input type="checkbox" data-layer="quakes" checked /> <span class="sw"></span><span class="nm"><span class="dot d-quake"></span>EARTHQUAKES <small id="c-quakes">0</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="fires" checked /> <span class="sw"></span><span class="nm"><span class="dot d-fire"></span>WILDFIRES <small id="c-fires">0</small></span></label>
+        <label class="lyr"><input type="checkbox" data-layer="fires" checked /> <span class="sw"></span><span class="nm"><span class="dot d-fire"></span>WILDFIRES (NASA) <small id="c-fires">0</small></span></label>
         <label class="lyr"><input type="checkbox" data-layer="storms" checked /> <span class="sw"></span><span class="nm"><span class="dot d-storm"></span>TROPICAL STORMS <small id="c-storms">0</small></span></label>
+        <label class="lyr"><input type="checkbox" data-layer="lightning" checked /> <span class="sw"></span><span class="nm"><span class="dot d-bolt"></span>LIGHTNING ⚡ <small id="c-bolt">0</small></span></label>
         <label class="lyr"><input type="checkbox" data-layer="news" checked /> <span class="sw"></span><span class="nm"><span class="dot d-news"></span>NEWS PINS <small id="c-news">0</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="sats" /> <span class="sw"></span><span class="nm"><span class="dot d-sat"></span>SATELLITES <small id="c-sats">0</small></span></label>
         <label class="lyr"><input type="checkbox" data-layer="iss" checked /> <span class="sw"></span><span class="nm"><span class="dot d-sat"></span>ISS LIVE <small id="c-iss">0</small></span></label>
-        <label class="lyr"><input type="checkbox" data-layer="clouds" /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · CLOUDS</span></label>
-        <label class="lyr"><input type="checkbox" data-layer="precip" /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · PRECIP</span></label>
+        <label class="lyr"><input type="checkbox" data-layer="sats" /> <span class="sw"></span><span class="nm"><span class="dot d-sat"></span>SATELLITES <small id="c-sats">0</small></span></label>
+        <label class="lyr"><input type="checkbox" data-layer="precip" checked /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · PRECIP <small>HD</small></span></label>
+        <label class="lyr"><input type="checkbox" data-layer="clouds" checked /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · CLOUDS</span></label>
         <label class="lyr"><input type="checkbox" data-layer="wind" /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · WIND</span></label>
         <label class="lyr"><input type="checkbox" data-layer="temp" /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · TEMP</span></label>
       </div>
@@ -101,18 +113,19 @@
     <div id="map"></div>
     <div class="kpis-overlay" id="kpis"></div>
     <div class="legend" id="legend">
-      <div class="lg-row"><span class="dot d-quake"></span> Quake (size = magnitude)</div>
-      <div class="lg-row"><span class="dot d-fire"></span> Active Fire</div>
+      <div class="lg-row"><span class="dot d-quake"></span> Earthquake (size = magnitude)</div>
+      <div class="lg-row"><span class="dot d-fire"></span> Active Fire (NASA)</div>
+      <div class="lg-row"><span class="dot d-bolt"></span> Lightning Strike (live)</div>
       <div class="lg-row"><span class="dot d-storm"></span> Tropical Storm</div>
       <div class="lg-row"><span class="dot d-news"></span> News Event</div>
-      <div class="lg-row"><span class="dot d-sat"></span> Satellite</div>
+      <div class="lg-row"><span class="dot d-sat"></span> Satellite / ISS</div>
     </div>
     <button class="fs" id="fs" title="Fullscreen map">⛶</button>
     <div class="map-meta" id="map-meta">INITIALIZING…</div>
   </section>
 
   <!-- RIGHT: feed -->
-  <aside class="right">
+  <aside class="right" id="right-rail">
     <div class="panel feed-panel">
       <div class="panel-hdr">
         <span>// SITUATIONAL FEED</span>
@@ -124,7 +137,7 @@
 </div>
 
 <footer class="ftr">
-  <span>SOURCES: USGS · NASA FIRMS · NOAA NHC · OpenWeatherMap · N2YO · NewsAPI · REUTERS · BBC · AP · Al Jazeera · OilPrice · gCaptain · BleepingComputer · ReliefWeb</span>
+  <span>SOURCES: USGS · NASA GIBS · NASA WORLDVIEW · NOAA NHC · OpenWeatherMap · Blitzortung · N2YO · NewsAPI · REUTERS · BBC · AP · Al Jazeera · OilPrice · gCaptain · BleepingComputer · ReliefWeb</span>
   <span>WORLDWATCH OPS · OPEN-SOURCE · NOT AN OFFICIAL INTEL PRODUCT</span>
 </footer>
 

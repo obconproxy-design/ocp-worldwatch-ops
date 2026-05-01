@@ -69,9 +69,12 @@ let minSev = 0;
 let q = "";
 let map;
 const layers = {}; // name -> L.LayerGroup or tile
-const layerActive = { quakes: true, fires: true, storms: true, news: true, sats: false, iss: true, clouds: false, precip: false, wind: false, temp: false };
+const layerActive = { nasaTrue: true, quakes: true, fires: true, storms: true, lightning: true, news: true, sats: false, iss: true, clouds: true, precip: true, wind: false, temp: false };
 let issMarker = null;
 let issTimer = null;
+let boltWs = null;
+let boltCount = 0;
+let boltDecayTimer = null;
 
 // === Bootstrap ===
 init();
@@ -88,6 +91,8 @@ async function init() {
     refreshStorms(),
   ]);
   startISS();
+  startLightning();
+  startBoltDecay();
   // refreshes
   setInterval(refreshNews, 5 * 60 * 1000);
   setInterval(refreshQuakes, 5 * 60 * 1000);
@@ -107,26 +112,34 @@ function startClock() {
 
 function initMap() {
   map = L.map("map", { worldCopyJump: true, zoomControl: true, attributionControl: true, minZoom: 2, maxZoom: 12 }).setView([20, 10], 2);
+  // Always-on dark base + city labels
   L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
-    attribution: "© OpenStreetMap · CARTO",
-    subdomains: "abcd", maxZoom: 19,
+    attribution: "© OpenStreetMap · CARTO", subdomains: "abcd", maxZoom: 19, opacity: 0.55,
   }).addTo(map);
   L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", {
-    subdomains: "abcd", maxZoom: 19, opacity: 0.7,
+    subdomains: "abcd", maxZoom: 19, opacity: 0.85, zIndex: 650,
   }).addTo(map);
+
+  // NASA Worldview / GIBS true-color (yesterday) — high resolution real-Earth imagery, default ON
+  const yday = new Date(Date.now() - 36*3600*1000).toISOString().slice(0,10);
+  layers.nasaTrue = L.tileLayer(
+    `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/${yday}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,
+    { attribution: "NASA GIBS · VIIRS True Color", maxNativeZoom: 9, maxZoom: 12, opacity: 0.85, tileSize: 256 }
+  ).addTo(map);
+
+  // Weather (CLOUDS + PRECIP default ON, brighter)
+  layers.clouds = L.tileLayer(`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${CFG.OWM_KEY}`, { opacity: 0.55, attribution: "© OpenWeatherMap" }).addTo(map);
+  layers.precip = L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${CFG.OWM_KEY}`, { opacity: 0.85 }).addTo(map);
+  layers.wind = L.tileLayer(`https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=${CFG.OWM_KEY}`, { opacity: 0.7 });
+  layers.temp = L.tileLayer(`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${CFG.OWM_KEY}`, { opacity: 0.6 });
 
   layers.quakes = L.layerGroup().addTo(map);
   layers.fires = L.layerGroup().addTo(map);
   layers.storms = L.layerGroup().addTo(map);
+  layers.lightning = L.layerGroup().addTo(map);
   layers.news = L.markerClusterGroup({ maxClusterRadius: 35, showCoverageOnHover: false, iconCreateFunction: (c) => L.divIcon({ html: `<div>${c.getChildCount()}</div>`, className: "marker-cluster", iconSize: [32,32] }) }).addTo(map);
   layers.sats = L.layerGroup();
   layers.iss = L.layerGroup().addTo(map);
-
-  // Weather tile layers (toggle on)
-  layers.clouds = L.tileLayer(`https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${CFG.OWM_KEY}`, { opacity: 0.6 });
-  layers.precip = L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${CFG.OWM_KEY}`, { opacity: 0.7 });
-  layers.wind = L.tileLayer(`https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=${CFG.OWM_KEY}`, { opacity: 0.6 });
-  layers.temp = L.tileLayer(`https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${CFG.OWM_KEY}`, { opacity: 0.55 });
 
   document.getElementById("map-meta").textContent = "READY · DRAG TO PAN · SCROLL TO ZOOM";
 }
@@ -168,6 +181,15 @@ function bindUI() {
   document.getElementById("q").addEventListener("input", e => { q = e.target.value.toLowerCase(); render(); });
   document.getElementById("refresh").addEventListener("click", () => { refreshNews(); refreshQuakes(); refreshFires(); refreshStorms(); });
   document.getElementById("reset-view").addEventListener("click", () => map.setView([20, 10], 2));
+  // Mobile drawer toggles
+  const left = document.getElementById("left-rail");
+  const right = document.getElementById("right-rail");
+  const scrim = document.getElementById("scrim");
+  const closeAll = () => { left.classList.remove("open"); right.classList.remove("open"); scrim.classList.remove("open"); };
+  document.getElementById("mob-left")?.addEventListener("click", () => { closeAll(); left.classList.add("open"); scrim.classList.add("open"); });
+  document.getElementById("mob-right")?.addEventListener("click", () => { closeAll(); right.classList.add("open"); scrim.classList.add("open"); });
+  scrim.addEventListener("click", closeAll);
+
   document.getElementById("fs").addEventListener("click", () => {
     const el = document.querySelector(".center");
     if (!document.fullscreenElement) el.requestFullscreen?.(); else document.exitFullscreen?.();
@@ -179,6 +201,50 @@ function bindUI() {
 function updateLayerCount() {
   const n = Object.values(layerActive).filter(Boolean).length;
   document.getElementById("layer-count").textContent = n;
+}
+
+// === Lightning strikes (Blitzortung free WebSocket) ===
+function startLightning() {
+  if (boltWs) return;
+  // Random server 1-3, public free real-time stroke feed
+  const srv = Math.floor(Math.random()*3) + 1;
+  try {
+    boltWs = new WebSocket(`wss://ws${srv}.blitzortung.org/`);
+    boltWs.onopen = () => { try { boltWs.send('{"a":111}'); } catch(e){} };
+    boltWs.onmessage = (ev) => {
+      try {
+        const data = decodeBlitz(ev.data);
+        if (!data || !data.lat || !data.lon) return;
+        addBolt(data.lat, data.lon);
+      } catch(e) {}
+    };
+    boltWs.onclose = () => { boltWs = null; setTimeout(startLightning, 5000); };
+    boltWs.onerror = () => { try { boltWs.close(); } catch(e){} };
+  } catch(e) { console.warn("lightning ws", e); }
+}
+// Blitzortung obfuscates JSON with simple LZW-like swap. Public decoder:
+function decodeBlitz(b){
+  const e={}; let d=b.split(""); let c=d[0]; let f=c; const g=[c]; let h=256, o=h;
+  for(let n=1;n<d.length;n++){
+    let a=d[n].charCodeAt(0);
+    a=h>a?d[n]:e[a]?e[a]:f+c;
+    g.push(a); c=a.charAt(0); e[o]=f+c; o++; f=a;
+  }
+  try { return JSON.parse(g.join("")); } catch { return null; }
+}
+function addBolt(lat, lon) {
+  const m = L.circleMarker([lat, lon], { radius: 5, fillColor: "#fde047", color: "#fff7c2", weight: 1, fillOpacity: 0.95 });
+  m._bornAt = Date.now();
+  m.addTo(layers.lightning);
+  boltCount++;
+  document.getElementById("c-bolt").textContent = boltCount;
+}
+function startBoltDecay() {
+  if (boltDecayTimer) return;
+  boltDecayTimer = setInterval(() => {
+    const cutoff = Date.now() - 10*60*1000; // keep last 10 minutes
+    layers.lightning.eachLayer(l => { if (l._bornAt && l._bornAt < cutoff) layers.lightning.removeLayer(l); });
+  }, 30000);
 }
 
 // === USGS Earthquakes ===
@@ -195,8 +261,8 @@ async function refreshQuakes() {
       const time = new Date(f.properties.time);
       const url = f.properties.url;
       const r = Math.max(4, m * 3);
-      const color = m >= 6 ? "#ef4444" : m >= 5 ? "#f97316" : m >= 4 ? "#facc15" : "#fb923c";
-      const c = L.circleMarker([lat, lon], { radius: r, fillColor: color, color: "#fff", weight: 0.6, fillOpacity: 0.7 });
+      const color = m >= 6 ? "#ff8a8a" : m >= 5 ? "#fdba74" : m >= 4 ? "#fde68a" : "#fed7aa";
+      const c = L.circleMarker([lat, lon], { radius: r, fillColor: color, color: "#fff", weight: 0.7, fillOpacity: 0.85 });
       c.bindPopup(`<b>M ${m.toFixed(1)} EARTHQUAKE</b><br>${escapeHtml(place)}<br><small>${time.toUTCString()}</small><br><small>Depth ${depth.toFixed(0)} km</small><br><a href="${url}" target="_blank">USGS details →</a>`);
       c.addTo(layers.quakes);
       n++;
@@ -231,8 +297,8 @@ async function refreshStorms() {
       const lat = parseFloat(s.lat), lon = parseFloat(s.lon);
       if (isNaN(lat) || isNaN(lon)) continue;
       const wind = s.intensity || 0, name = s.name, basin = s.binNumber, cls = s.classification;
-      const color = wind >= 96 ? "#ef4444" : wind >= 74 ? "#f97316" : wind >= 39 ? "#facc15" : "#38bdf8";
-      const c = L.circleMarker([lat, lon], { radius: 12, fillColor: color, color: "#fff", weight: 1, fillOpacity: 0.5 });
+      const color = wind >= 96 ? "#ff8a8a" : wind >= 74 ? "#fdba74" : wind >= 39 ? "#fde68a" : "#93c5fd";
+      const c = L.circleMarker([lat, lon], { radius: 14, fillColor: color, color: "#fff", weight: 1.2, fillOpacity: 0.65 });
       c.bindPopup(`<b>${cls} ${escapeHtml(name)}</b><br>Wind ${wind} kt<br>Pressure ${s.pressure || "?"} mb<br>Movement ${s.movement || "?"}<br><a href="https://www.nhc.noaa.gov/" target="_blank">NHC →</a>`);
       c.addTo(layers.storms);
     }
@@ -403,8 +469,8 @@ function render() {
   for (const it of visible.filter(x => x.lat != null)) {
     const lat = it.lat + (Math.random()-0.5) * 1.2;
     const lon = it.lon + (Math.random()-0.5) * 1.2;
-    const color = it.sev >= 4 ? "#ef4444" : it.sev >= 3 ? "#f97316" : "#ffb020";
-    const m = L.circleMarker([lat, lon], { radius: 5 + it.sev, fillColor: color, color: "#fff", weight: 0.5, fillOpacity: 0.85 });
+    const color = it.sev >= 4 ? "#ff8a8a" : it.sev >= 3 ? "#fdba74" : "#fcd34d";
+    const m = L.circleMarker([lat, lon], { radius: 5 + it.sev, fillColor: color, color: "#fff", weight: 0.7, fillOpacity: 0.95 });
     m.bindPopup(`<b>${it.cat.toUpperCase()} · S${it.sev}</b><br><a href="${escapeAttr(it.link)}" target="_blank">${escapeHtml(it.title)}</a><br><small>${escapeHtml(it.src)} · ${escapeHtml(it.region)}</small>`);
     m.addTo(layers.news);
     pins++;

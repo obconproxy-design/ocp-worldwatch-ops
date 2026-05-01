@@ -15,3 +15,12 @@
 - [ ] Stat overlay panel (signals, conflict, criticals, top hotspot)
 - [ ] Mobile responsive layout
 - [ ] Push update to GitHub repo
+
+## Round 2 polish
+- [ ] Brighter pastel layer icons + dot colors
+- [ ] Darker map base + brighter pastel labels
+- [ ] Stronger weather overlays (clouds + precip default ON)
+- [ ] Add lightning strike layer (Blitzortung WS)
+- [ ] NASA true-color VIIRS basemap toggle, default ON
+- [ ] Mobile-friendly Chrome (collapsible rails, big touch targets, responsive grid)
+- [ ] Push to GitHub
