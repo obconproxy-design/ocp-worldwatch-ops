@@ -3,11 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Worldwatch OPS — Live Global Situational Awareness</title>
-<meta name="description" content="Live geopolitical operations dashboard — conflict, maritime, aviation, energy, diplomacy." />
+<title>Worldwatch OPS — Live Global Command Center</title>
+<meta name="description" content="Real-time global command center: earthquakes, wildfires, weather, storms, satellites, conflict & news intelligence." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -16,8 +19,8 @@
     <div class="brand">
       <div class="logo">W</div>
       <div>
-        <h1>WORLDWATCH OPS</h1>
-        <div class="sub">GEOPOLITICAL · MARITIME · AVIATION · ENERGY · DIPLOMACY</div>
+        <h1>WORLDWATCH OPS · GLOBAL COMMAND CENTER</h1>
+        <div class="sub">EARTHQUAKES · FIRES · STORMS · SATELLITES · CONFLICT · INTEL</div>
       </div>
     </div>
     <div class="status">
@@ -25,67 +28,109 @@
       <div class="date" id="date">—</div>
     </div>
   </div>
-  <div class="banner">// UNCLASSIFIED · OPEN-SOURCE INTELLIGENCE · <span id="hdr-date"></span> //</div>
+  <div class="banner">// UNCLASSIFIED · OPEN-SOURCE INTELLIGENCE · <span id="hdr-date"></span> · LAYERS: <span id="layer-count">0</span> ACTIVE //</div>
 </header>
 
-<section class="controls">
-  <div class="cat-row">
-    <button class="cat active" data-cat="all">ALL <span class="ct" data-cnt="all">0</span></button>
-    <button class="cat" data-cat="conflict">CONFLICT <span class="ct" data-cnt="conflict">0</span></button>
-    <button class="cat" data-cat="maritime">MARITIME <span class="ct" data-cnt="maritime">0</span></button>
-    <button class="cat" data-cat="aviation">AVIATION <span class="ct" data-cnt="aviation">0</span></button>
-    <button class="cat" data-cat="energy">ENERGY <span class="ct" data-cnt="energy">0</span></button>
-    <button class="cat" data-cat="defense">DEFENSE <span class="ct" data-cnt="defense">0</span></button>
-    <button class="cat" data-cat="cyber">CYBER / AI <span class="ct" data-cnt="cyber">0</span></button>
-    <button class="cat" data-cat="disaster">DISASTER <span class="ct" data-cnt="disaster">0</span></button>
-    <button class="cat" data-cat="diplomacy">DIPLOMACY <span class="ct" data-cnt="diplomacy">0</span></button>
-  </div>
-  <div class="filt-row">
-    <div class="time-range">
-      <button class="tr active" data-h="24">24H</button>
-      <button class="tr" data-h="168">7D</button>
-      <button class="tr" data-h="720">30D</button>
-      <button class="tr" data-h="2160">90D</button>
-      <button class="tr" data-h="8760">1Y</button>
-    </div>
-    <div class="sev">
-      <label>SEVERITY ≥ <span id="sev-val">0</span></label>
-      <input type="range" min="0" max="5" value="0" id="sev" />
-    </div>
-    <div class="search">
-      <input type="text" placeholder="filter keywords…" id="q" />
-    </div>
-    <button class="refresh" id="refresh">↻ REFRESH</button>
-  </div>
-</section>
-
-<section class="kpis" id="kpis"></section>
-
-<main class="main">
-  <div class="feed-wrap">
-    <div class="panel-hdr">
-      <span>// LIVE SITUATIONAL FEED</span>
-      <span id="feed-meta">—</span>
-    </div>
-    <div id="feed" class="feed"></div>
-  </div>
-  <aside class="side">
+<div class="layout">
+  <!-- LEFT: layers + filters -->
+  <aside class="left">
     <div class="panel">
-      <div class="panel-hdr"><span>// ACTIVE HOTSPOTS</span></div>
+      <div class="panel-hdr">// LAYERS</div>
+      <div class="layer-list" id="layers">
+        <label class="lyr"><input type="checkbox" data-layer="quakes" checked /> <span class="sw"></span><span class="nm"><span class="dot d-quake"></span>EARTHQUAKES <small id="c-quakes">0</small></span></label>
+        <label class="lyr"><input type="checkbox" data-layer="fires" checked /> <span class="sw"></span><span class="nm"><span class="dot d-fire"></span>WILDFIRES <small id="c-fires">0</small></span></label>
+        <label class="lyr"><input type="checkbox" data-layer="storms" checked /> <span class="sw"></span><span class="nm"><span class="dot d-storm"></span>TROPICAL STORMS <small id="c-storms">0</small></span></label>
+        <label class="lyr"><input type="checkbox" data-layer="news" checked /> <span class="sw"></span><span class="nm"><span class="dot d-news"></span>NEWS PINS <small id="c-news">0</small></span></label>
+        <label class="lyr"><input type="checkbox" data-layer="sats" /> <span class="sw"></span><span class="nm"><span class="dot d-sat"></span>SATELLITES <small id="c-sats">0</small></span></label>
+        <label class="lyr"><input type="checkbox" data-layer="iss" checked /> <span class="sw"></span><span class="nm"><span class="dot d-sat"></span>ISS LIVE <small id="c-iss">0</small></span></label>
+        <label class="lyr"><input type="checkbox" data-layer="clouds" /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · CLOUDS</span></label>
+        <label class="lyr"><input type="checkbox" data-layer="precip" /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · PRECIP</span></label>
+        <label class="lyr"><input type="checkbox" data-layer="wind" /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · WIND</span></label>
+        <label class="lyr"><input type="checkbox" data-layer="temp" /> <span class="sw"></span><span class="nm"><span class="dot d-w"></span>WEATHER · TEMP</span></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hdr">// CATEGORY</div>
+      <div class="cat-list" id="cats">
+        <button class="cat active" data-cat="all">ALL <small data-cnt="all">0</small></button>
+        <button class="cat" data-cat="conflict">CONFLICT <small data-cnt="conflict">0</small></button>
+        <button class="cat" data-cat="maritime">MARITIME <small data-cnt="maritime">0</small></button>
+        <button class="cat" data-cat="aviation">AVIATION <small data-cnt="aviation">0</small></button>
+        <button class="cat" data-cat="energy">ENERGY <small data-cnt="energy">0</small></button>
+        <button class="cat" data-cat="defense">DEFENSE <small data-cnt="defense">0</small></button>
+        <button class="cat" data-cat="cyber">CYBER / AI <small data-cnt="cyber">0</small></button>
+        <button class="cat" data-cat="disaster">DISASTER <small data-cnt="disaster">0</small></button>
+        <button class="cat" data-cat="diplomacy">DIPLOMACY <small data-cnt="diplomacy">0</small></button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hdr">// FILTERS</div>
+      <div class="filt">
+        <div class="row"><label>WINDOW</label>
+          <div class="time-range" id="trange">
+            <button class="tr active" data-h="24">24H</button>
+            <button class="tr" data-h="168">7D</button>
+            <button class="tr" data-h="720">30D</button>
+            <button class="tr" data-h="2160">90D</button>
+            <button class="tr" data-h="8760">1Y</button>
+          </div>
+        </div>
+        <div class="row"><label>SEV ≥ <span id="sev-val">0</span></label>
+          <input type="range" min="0" max="5" value="0" id="sev" />
+        </div>
+        <div class="row"><label>SEARCH</label>
+          <input type="text" placeholder="keywords…" id="q" />
+        </div>
+        <div class="row btn-row">
+          <button class="refresh" id="refresh">↻ REFRESH</button>
+          <button class="reset" id="reset-view">⊕ RESET MAP</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hdr">// HOTSPOTS</div>
       <div id="hotspots" class="hotspots"></div>
     </div>
-    <div class="panel">
-      <div class="panel-hdr"><span>// SOURCES</span></div>
-      <div id="sources" class="sources"></div>
+  </aside>
+
+  <!-- CENTER: map -->
+  <section class="center">
+    <div id="map"></div>
+    <div class="kpis-overlay" id="kpis"></div>
+    <div class="legend" id="legend">
+      <div class="lg-row"><span class="dot d-quake"></span> Quake (size = magnitude)</div>
+      <div class="lg-row"><span class="dot d-fire"></span> Active Fire</div>
+      <div class="lg-row"><span class="dot d-storm"></span> Tropical Storm</div>
+      <div class="lg-row"><span class="dot d-news"></span> News Event</div>
+      <div class="lg-row"><span class="dot d-sat"></span> Satellite</div>
+    </div>
+    <button class="fs" id="fs" title="Fullscreen map">⛶</button>
+    <div class="map-meta" id="map-meta">INITIALIZING…</div>
+  </section>
+
+  <!-- RIGHT: feed -->
+  <aside class="right">
+    <div class="panel feed-panel">
+      <div class="panel-hdr">
+        <span>// SITUATIONAL FEED</span>
+        <span id="feed-meta">—</span>
+      </div>
+      <div id="feed" class="feed"></div>
     </div>
   </aside>
-</main>
+</div>
 
 <footer class="ftr">
-  <span id="ftr-status">SOURCES: REUTERS · BBC · AP · AL JAZEERA · DEFENSE · ENERGY · MARITIME RSS</span>
+  <span>SOURCES: USGS · NASA FIRMS · NOAA NHC · OpenWeatherMap · N2YO · NewsAPI · REUTERS · BBC · AP · Al Jazeera · OilPrice · gCaptain · BleepingComputer · ReliefWeb</span>
   <span>WORLDWATCH OPS · OPEN-SOURCE · NOT AN OFFICIAL INTEL PRODUCT</span>
 </footer>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="./config.js"></script>
 <script src="./app.js"></script>
 </body>
 </html>
